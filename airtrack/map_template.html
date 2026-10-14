@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="__MAPLIBRE_CSS__">
+<script src="__MAPLIBRE_JS__"></script>
+<script src="__DECK_JS__"></script>
+<style>
+  :root {
+    --ink: #14213D; --muted: #5B6B82; --line: #D6DEE8; --panel: rgba(255,255,255,.94);
+    --arr: #0B6E99; --dep: #E07A00; --accent: #0B6E99; --bg: #F5F7FA;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.35 "Source Sans 3", "Source Sans Pro", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  button, select { font: inherit; color: var(--ink); }
+  button { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; min-width: 96px; }
+  button.on { background: #E3F0F7; border-color: var(--accent); }
+  select { border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; background: #fff; }
+
+  /* barre de contrôle */
+  #bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px 6px; }
+  .clock { display: flex; flex-direction: column; line-height: 1; margin-right: 6px; }
+  .clock span { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+  .clock small { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .grp { display: inline-flex; }
+  .grp button { border-radius: 0; margin-left: -1px; }
+  .grp button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+  .grp button:last-child { border-radius: 0 6px 6px 0; }
+  .kpis { display: flex; gap: 16px; margin-left: auto; }
+  .kpis div { display: flex; flex-direction: column; align-items: flex-end; }
+  .kpis b { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .kpis span { color: var(--muted); font-size: 11px; }
+
+  /* frise temporelle */
+  #timeline { position: relative; padding: 0 10px 4px; }
+  #spark { display: block; width: 100%; height: 34px; cursor: pointer; }
+  #slider { width: 100%; margin: 0; accent-color: var(--accent); }
+  .hours { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; padding: 0 2px; }
+
+  /* carte */
+  main { position: relative; flex: 1; min-height: 0; margin: 0 10px 10px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  #map { position: absolute; inset: 0; background: #E9EEF3; }
+  .panel { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           box-shadow: 0 2px 10px rgba(20,33,61,.10); z-index: 2; }
+  #opts { left: 10px; top: 10px; width: 228px; padding: 10px 12px; }
+  #opts h4, #side h4 { margin: 0 0 6px; font-size: 13px; }
+  #opts label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 5px 0; }
+  #opts .row { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+  #opts .row button { flex: 1; padding: 4px 6px; font-size: 12px; }
+  #opts input[type=range] { width: 100px; accent-color: var(--accent); }
+  #opts .sep { border-top: 1px solid var(--line); margin: 8px 0; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+  #opts-toggle { display: none; }
+
+  #side { right: 10px; top: 10px; bottom: 10px; width: 270px; display: flex; flex-direction: column; padding: 10px 10px 8px; }
+  #cards { overflow-y: auto; flex: 1; min-height: 0; }
+  .card { display: grid; grid-template-columns: 34px 1fr auto; gap: 2px 8px; align-items: center; padding: 7px 6px;
+          border-radius: 8px; border-left: 4px solid transparent; cursor: pointer; }
+  .card:hover { background: #EEF3F8; }
+  .card.sel { background: #E3F0F7; }
+  .card.ARR { border-left-color: var(--arr); } .card.DEP { border-left-color: var(--dep); }
+  .card img, .logo-fallback { width: 32px; height: 32px; object-fit: contain; grid-row: span 2; border-radius: 6px; background: #fff; }
+  .logo-fallback { display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; background: var(--muted); }
+  .card .v { font-weight: 700; }
+  .card .r { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .n { text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+  .empty { color: var(--muted); padding: 8px 4px; }
+  #detail { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 8px; display: none; }
+  #detail .hd { display: flex; align-items: center; gap: 8px; }
+  #detail img { width: 40px; height: 40px; object-fit: contain; }
+  #detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0 6px; font-size: 12px; }
+  #detail dt { color: var(--muted); } #detail dd { margin: 0; font-variant-numeric: tabular-nums; }
+  #detail .acts { display: flex; gap: 6px; }
+  #detail .acts button { flex: 1; font-size: 12px; padding: 4px; }
+
+  #notice { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; display: none;
+            background: #14213D; color: #fff; border-radius: 8px; padding: 7px 12px; font-size: 12px; }
+  .maplibregl-ctrl-attrib { font-size: 10px; }
+  .deck-tooltip { font: 12px/1.35 system-ui, sans-serif !important; border-radius: 8px; }
+
+  @media (max-width: 860px) {
+    #side { top: auto; height: 38%; left: 10px; width: auto; }
+    #opts { display: none; }
+    #opts.open { display: block; }
+    #opts-toggle { display: block; position: absolute; left: 10px; top: 10px; z-index: 3; }
+    .kpis { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div class="clock"><span id="clock">--:--:--</span><small>heure locale (CEST)</small></div>
+    <button id="play" class="primary" aria-label="Lecture / pause">▶ Lecture</button>
+    <select id="speed" aria-label="Vitesse de lecture">
+      <option value="1">×1 (temps réel)</option><option value="5">×5</option><option value="10">×10</option>
+      <option value="30" selected>×30</option><option value="60">×60</option><option value="120">×120</option><option value="300">×300</option>
+    </select>
+    <span class="grp">
+      <button data-step="-600" title="Reculer de 10 minutes">−10 min</button><button data-step="-60" title="Reculer d'une minute">−1 min</button>
+      <button data-step="60" title="Avancer d'une minute">+1 min</button><button data-step="600" title="Avancer de 10 minutes">+10 min</button>
+    </span>
+    <button id="next" title="Aller à l'entrée du prochain avion dans la zone">Prochain avion</button>
+    <button id="peak" title="Moment où le plus d'avions sont dans la zone">Heure de pointe</button>
+    <div class="kpis">
+      <div><b id="k-in">0</b><span>avions dans la zone</span></div>
+      <div><b id="k-mv">0</b><span>mouvements depuis minuit</span></div>
+      <div><b id="k-next">—</b><span>prochain mouvement</span></div>
+    </div>
+  </header>
+  <div id="timeline">
+    <svg id="spark" preserveAspectRatio="none" aria-label="Avions simultanément dans la zone au fil de la journée"></svg>
+    <input type="range" id="slider" min="0" max="86399" step="1" aria-label="Heure de la journée">
+    <div class="hours"><span>00h</span><span>03h</span><span>06h</span><span>09h</span><span>12h</span><span>15h</span><span>18h</span><span>21h</span><span>24h</span></div>
+  </div>
+  <main>
+    <div id="map"></div>
+    <button id="opts-toggle" class="panel">Options</button>
+    <div id="opts" class="panel">
+      <h4>Affichage</h4>
+      <label>Trajectoires
+        <select id="mode">
+          <option value="tail">Traîne (2 min)</option>
+          <option value="travelled" selected>Parcourue</option>
+          <option value="complete">Complète</option>
+        </select>
+      </label>
+      <label>Murs jusqu'au sol <input type="checkbox" id="walls" checked></label>
+      <label>Étiquettes <input type="checkbox" id="labels" checked></label>
+      <label>Toute la journée en fond <input type="checkbox" id="bg"></label>
+      <label>Relief vertical ×<span id="ex-v">2</span> <input type="range" id="ex" min="1" max="4" step="0.5" value="2"></label>
+      <label>Taille des avions <input type="range" id="size" min="0.6" max="2" step="0.1" value="1"></label>
+      <div class="sep"></div>
+      <h4>Fond de carte</h4>
+      <div class="row" id="basemaps">
+        <button data-style="plan" class="on">Plan 3D</button><button data-style="dark">Sombre</button><button data-style="sat">Satellite</button>
+      </div>
+      <h4 style="margin-top:8px">Vue</h4>
+      <div class="row">
+        <button id="v-all">Ensemble</button><button id="v-apt">Aéroport</button><button id="v-top">Dessus</button>
+      </div>
+      <div class="sep"></div>
+      <div class="legend"><span><span class="dot" style="background:var(--arr)"></span>Arrivée</span>
+        <span><span class="dot" style="background:var(--dep)"></span>Départ</span></div>
+      <div style="color:var(--muted);font-size:11px;margin-top:5px">Cercles : 5 à 25 NM. Tirets : axe d'approche piste 12.
+        Clic sur un avion pour le suivre.</div>
+    </div>
+    <div id="side" class="panel">
+      <h4>Dans la zone <span id="n-in" style="color:var(--muted);font-weight:400"></span></h4>
+      <div id="cards"></div>
+      <div id="detail"></div>
+    </div>
+    <div id="notice"></div>
+  </main>
+</div>
+<script>
+"use strict";
+const DATA = __DATA__;
+
+// ------------------------------------------------------------------ constantes
+const COL = { ARR: [11, 110, 153], DEP: [224, 122, 0] };
+const ELEV_FT = DATA.elev_ft, FT = 0.3048;
+const CENTER = DATA.center;                   // [lon, lat] centre de piste
+const PHASES = DATA.phases;
+const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+// jeu de caractères fixe : évite que deck.gl réanalyse les textes à chaque image
+const CHARS = (() => { const set = new Set(" 0123456789·-–()NMftkBVA\u202F\u00A0".split(""));
+  for (const f of DATA.flights) for (const c of f.vol + f.type + "Paris-Beauvais") set.add(c);
+  return Array.from(set).join(""); })();
+const STYLES = {
+  plan: "https://tiles.openfreemap.org/styles/liberty",
+  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+  sat: {
+    version: 8,
+    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      esri: { type: "raster", tileSize: 256, maxzoom: 19,
+              tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+              attribution: "Imagerie © Esri, Maxar, Earthstar Geographics" },
+    },
+    layers: [{ id: "esri", type: "raster", source: "esri" }],
+  },
+};
+const FALLBACK_STYLE = { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#E9EEF3" } }] };
+const VIEWS = {
+  all: { center: CENTER, zoom: 9.0, pitch: 55, bearing: -20 },
+  apt: { center: [CENTER[0] - 0.004, CENTER[1] + 0.003], zoom: 14.1, pitch: 62, bearing: -38 },
+  top: { center: CENTER, zoom: 8.6, pitch: 0, bearing: 0 },
+};
+
+// ------------------------------------------------------------------ état
+const S = {
+  T: DATA.start_s, playing: false, speed: 30, mode: "travelled", walls: true, labels: true, bg: false,
+  ex: 2, size: 1, sel: null, follow: false, style: "plan",
+};
+const Z = (ft) => Math.max(ft - ELEV_FT, 0) * FT * S.ex;      // altitude d'affichage (m) au-dessus de la piste
+
+// ------------------------------------------------------------------ préparation des vols
+function angDiff(a, b) { return ((a - b + 540) % 360) - 180; }
+const FLIGHTS = DATA.flights.map((f) => {
+  const n = f.t.length, bank = new Float32Array(n), pitch = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(0, i - 2), b = Math.min(n - 1, i + 2), dt = f.t[b] - f.t[a] || 1;
+    const v = Math.max(f.gs[i], 1) * 0.5144;
+    const w = (angDiff(f.hdg[b], f.hdg[a]) / dt) * Math.PI / 180;
+    bank[i] = f.alt[i] <= ELEV_FT + 5 ? 0 : Math.max(-30, Math.min(30, Math.atan(v * w / 9.81) * 180 / Math.PI));
+    const vz = ((f.alt[b] - f.alt[a]) * FT) / dt;
+    pitch[i] = Math.atan2(vz, v) * 180 / Math.PI + (f.alt[i] > ELEV_FT + 5 ? 2.5 : 0);   // + assiette de croisière
+  }
+  return { ...f, n, bank, pitch, t0: f.t[0], t1: f.t[n - 1] };
+});
+const BYID = Object.fromEntries(FLIGHTS.map((f) => [f.id, f]));
+const EVENTS = DATA.events;                     // heures des mouvements piste (s), triées
+
+function stateAt(f, T) {
+  if (T < f.t0 || T > f.t1) return null;
+  let i = 0, j = f.n - 1;
+  while (j - i > 1) { const m = (i + j) >> 1; if (f.t[m] <= T) i = m; else j = m; }
+  const a = f.t[j] > f.t[i] ? (T - f.t[i]) / (f.t[j] - f.t[i]) : 0;
+  const L = (k) => k[i] + (k[j] - k[i]) * a;
+  return {
+    f, i, lon: L(f.lon), lat: L(f.lat), alt: L(f.alt), gs: L(f.gs), bank: L(f.bank), pitch: L(f.pitch),
+    hdg: (f.hdg[i] + angDiff(f.hdg[j], f.hdg[i]) * a + 360) % 360, phase: PHASES[f.ph[a < 0.5 ? i : j]], since: T - f.t0,
+  };
+}
+
+// ------------------------------------------------------------------ géométries statiques
+const KM_LON = 111.32 * Math.cos(CENTER[1] * Math.PI / 180), KM_LAT = 110.57;
+function ring(nm) {
+  const r = nm * 1.852, pts = [];
+  for (let k = 0; k <= 180; k++) { const a = (k / 180) * 2 * Math.PI; pts.push([CENTER[0] + r * Math.sin(a) / KM_LON, CENTER[1] + r * Math.cos(a) / KM_LAT]); }
+  return { path: pts, nm };
+}
+const RINGS = [5, 10, 15, 20, 25].map(ring);
+const RING_LABELS = RINGS.map((r) => ({ position: [CENTER[0], CENTER[1] + r.nm * 1.852 / KM_LAT], text: r.nm + " NM" }));
+const [T12, T30] = [DATA.runway.thr12, DATA.runway.thr30];
+const rwyVec = [(T30[0] - T12[0]) * KM_LON, (T30[1] - T12[1]) * KM_LAT];
+const rwyLen = Math.hypot(...rwyVec), U = [rwyVec[0] / rwyLen, rwyVec[1] / rwyLen], N = [-U[1], U[0]];
+const off = (p, along, across) => [p[0] + (U[0] * along + N[0] * across) / KM_LON, p[1] + (U[1] * along + N[1] * across) / KM_LAT];
+const HW = 0.0225;                                   // demi-largeur de piste : 45 m
+const RUNWAY = [{ polygon: [off(T12, -0.06, -HW), off(T30, 0.06, -HW), off(T30, 0.06, HW), off(T12, -0.06, HW)] }];
+const CENTERLINE = [{ path: [off(T12, 0.08, 0), off(T30, -0.08, 0)] }];
+const ILS = [{ path: [off(T12, 0, 0), off(T12, -18.52, 0)] }];
+const RWY_TXT = [{ position: off(T12, 0.18, 0), text: "12" }, { position: off(T30, -0.18, 0), text: "30" }];
+const APT_TXT = [{ position: off(T12, 1.2, 1.3), text: "Paris-Beauvais (BVA)" }];
+const RWY_ALL = RWY_TXT.concat(APT_TXT);
+
+// données dépendant de l'exagération verticale
+let DYN = null;
+function buildDyn() {
+  const trips = [], walls = [];
+  for (const f of FLIGHTS) {
+    const path = [], ts = [];
+    for (let i = 0; i < f.n; i++) { path.push([f.lon[i], f.lat[i], Z(f.alt[i])]); ts.push(f.t[i]); }
+    trips.push({ f, path, ts, s: f.t0, e: f.t1, color: COL[f.sens] });
+    for (let i = 0; i < f.n - 1; i++) {
+      const z0 = path[i][2], z1 = path[i + 1][2];
+      if (z0 < 1 && z1 < 1) continue;
+      walls.push({ polygon: [[path[i][0], path[i][1], 0], [path[i + 1][0], path[i + 1][1], 0], [path[i + 1][0], path[i + 1][1], z1], [path[i][0], path[i][1], z0]],
+                   t: f.t[i + 1], s: f.t0, e: f.t1, color: COL[f.sens] });
+    }
+  }
+  DYN = { trips, walls, v: (DYN ? DYN.v : 0) + 1 };
+}
+buildDyn();
+
+// ------------------------------------------------------------------ carte
+const map = new maplibregl.Map({
+  container: "map", style: STYLES.plan, ...VIEWS.all, maxPitch: 75, antialias: true, attributionControl: { compact: true },
+});
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "bottom-left");
+let styleOk = false;
+const styleTimer = setTimeout(() => { if (!styleOk) useFallback(); }, 8000);
+function useFallback() {
+  notice("Fond de carte indisponible (pas d'accès aux tuiles) : affichage simplifié.", 6000);
+  map.setStyle(FALLBACK_STYLE);
+}
+map.on("error", (e) => { if (!styleOk && e && e.error && /style|fetch|Failed/i.test(String(e.error.message || e.error))) { clearTimeout(styleTimer); useFallback(); } });
+map.on("style.load", () => {
+  styleOk = true; clearTimeout(styleTimer);
+  try { add3dBuildings(); } catch (err) { /* style sans bâtiments */ }
+  try { map.setSky({ "sky-color": "#BFD8EE", "horizon-color": "#E8F0F7", "fog-color": "#EEF2F6", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.6, "fog-ground-blend": 0.3 }); } catch (err) {}
+});
+function add3dBuildings() {
+  const style = map.getStyle();
+  if (style.layers.some((l) => l.type === "fill-extrusion")) return;
+  const src = Object.keys(style.sources).find((k) => style.sources[k].type === "vector");
+  if (!src) return;
+  map.addLayer({
+    id: "batiments-3d", type: "fill-extrusion", source: src, "source-layer": "building", minzoom: 13,
+    paint: { "fill-extrusion-color": S.style === "dark" ? "#3A4558" : "#D9D4CC",
+             "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 8],
+             "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], ["get", "min_height"], 0],
+             "fill-extrusion-opacity": 0.85 },
+  });
+}
+
+const LIGHTS = new deck.LightingEffect({
+  ambient: new deck.AmbientLight({ color: [255, 255, 255], intensity: 1.6 }),
+  sun: new deck.DirectionalLight({ color: [255, 250, 240], intensity: 2.2, direction: [-1, -1, -2.5] }),
+  fill: new deck.DirectionalLight({ color: [210, 225, 255], intensity: 0.8, direction: [1, 1, -1] }),
+});
+const overlay = new deck.MapboxOverlay({
+  interleaved: true, layers: [], effects: [LIGHTS],
+  getTooltip: ({ object, layer }) => {
+    if (!object || !layer || !layer.id.startsWith("avions")) return null;
+    const f = object.f;
+    return { html: `<b>${f.vol}</b> – ${f.cie}<br>${f.type_nom} (${f.immat})<br>${f.sens === "ARR" ? "Arrivée de" : "Départ vers"} ${f.ville}` +
+                   `<br>${fmtFt(object.alt)} ft · ${Math.round(object.gs)} kt<br>${object.phase}`,
+             style: { background: "#14213D", color: "#fff", padding: "6px 9px" } };
+  },
+  onClick: (info) => { if (info.object && info.layer && info.layer.id.startsWith("avions")) select(info.object.f.id, true); },
+});
+map.addControl(overlay);
+
+const EXT = { f2: [new deck.DataFilterExtension({ filterSize: 2 })], f3: [new deck.DataFilterExtension({ filterSize: 3 })],
+              dash: [new deck.PathStyleExtension({ dash: true })] };      // créées une seule fois (sinon recompilation à chaque image)
+const fmtFt = (ft) => Math.round(ft / 10) * 10 === 0 ? "0" : (Math.round(ft / 10) * 10).toLocaleString("fr-FR");
+
+function layers(states) {
+  const T = S.T, active = [[-1, T], [T, 1e6]];
+  const tLo = S.mode === "tail" ? T - 120 : -1, tHi = S.mode === "complete" ? 1e6 : T;
+  const L = [];
+  // anneaux, piste, axe ILS
+  L.push(new deck.PathLayer({ id: "anneaux", data: RINGS, getPath: (d) => d.path, getColor: (d) => d.nm === 25 ? [20, 33, 61, 170] : [20, 33, 61, 70],
+    getWidth: (d) => (d.nm === 25 ? 2.5 : 1), widthUnits: "pixels" }));
+  L.push(new deck.TextLayer({ id: "anneaux-txt", data: RING_LABELS, getPosition: (d) => d.position, getText: (d) => d.text, getSize: 11,
+    getColor: [20, 33, 61, 190], background: true, getBackgroundColor: [255, 255, 255, 170], backgroundPadding: [3, 1], characterSet: CHARS, fontFamily: FONT }));
+  L.push(new deck.PathLayer({ id: "ils", data: ILS, getPath: (d) => d.path, getColor: [20, 33, 61, 120], getWidth: 1.5, widthUnits: "pixels",
+    getDashArray: [6, 4], dashJustified: true, extensions: EXT.dash }));
+  L.push(new deck.SolidPolygonLayer({ id: "piste", data: RUNWAY, getPolygon: (d) => d.polygon, getFillColor: [45, 50, 58, 235] }));
+  L.push(new deck.PathLayer({ id: "piste-axe", data: CENTERLINE, getPath: (d) => d.path, getColor: [255, 255, 255, 230], getWidth: 1.5, widthUnits: "pixels",
+    getDashArray: [5, 4], extensions: EXT.dash }));
+  const zoom = map.getZoom();
+  L.push(new deck.TextLayer({ id: "piste-txt", data: zoom > 11.5 ? RWY_ALL : APT_TXT, getPosition: (d) => d.position, getText: (d) => d.text,
+    getSize: (d) => d.text.length > 3 ? 12 : 13, getColor: [20, 33, 61, 255], fontWeight: 700, background: true,
+    getBackgroundColor: [255, 255, 255, 215], backgroundPadding: [4, 2], characterSet: CHARS, fontFamily: FONT }));
+
+  if (S.bg) L.push(new deck.PathLayer({ id: "fond", data: DYN.trips, getPath: (d) => d.path, getColor: (d) => [...d.color, 55],
+    getWidth: 1.2, widthUnits: "pixels", updateTriggers: { getPath: DYN.v } }));
+
+  if (S.walls) {
+    L.push(new deck.SolidPolygonLayer({ id: "murs", data: DYN.walls, _full3d: true, getPolygon: (d) => d.polygon,
+      getFillColor: (d) => [...d.color, 46], updateTriggers: { getPolygon: DYN.v },
+      getFilterValue: (d) => [d.t, d.s, d.e], filterRange: [[tLo, tHi], ...active], extensions: EXT.f3, parameters: { depthWriteEnabled: false } }));
+    if (S.mode !== "complete") {
+      const heads = [];
+      for (const s of states) {
+        const f = s.f, i = s.i, z0 = Z(f.alt[i]), z1 = Z(s.alt);
+        if (z0 < 1 && z1 < 1) continue;
+        heads.push({ polygon: [[f.lon[i], f.lat[i], 0], [s.lon, s.lat, 0], [s.lon, s.lat, z1], [f.lon[i], f.lat[i], z0]], color: COL[f.sens] });
+      }
+      L.push(new deck.SolidPolygonLayer({ id: "murs-tete", data: heads, _full3d: true, getPolygon: (d) => d.polygon,
+        getFillColor: (d) => [...d.color, 46], parameters: { depthWriteEnabled: false } }));
+    }
+  }
+  // trajectoires
+  if (S.mode !== "tail") L.push(new deck.PathLayer({ id: "traj-complete", data: DYN.trips, getPath: (d) => d.path,
+    getColor: (d) => [...d.color, S.mode === "complete" ? 235 : 70], getWidth: S.mode === "complete" ? 3 : 2, widthUnits: "pixels",
+    widthMinPixels: 2, capRounded: true, jointRounded: true, updateTriggers: { getPath: DYN.v, getColor: S.mode },
+    getFilterValue: (d) => [d.s, d.e], filterRange: active, extensions: EXT.f2 }));
+  if (S.mode !== "complete") L.push(new deck.TripsLayer({ id: "traj", data: DYN.trips, getPath: (d) => d.path, getTimestamps: (d) => d.ts,
+    getColor: (d) => d.color, currentTime: T, trailLength: S.mode === "tail" ? 120 : 1e6, fadeTrail: S.mode === "tail",
+    getWidth: 3.5, widthUnits: "pixels", widthMinPixels: 3, capRounded: true, jointRounded: true, updateTriggers: { getPath: DYN.v },
+    getFilterValue: (d) => [d.s, d.e], filterRange: active, extensions: EXT.f2 }));
+
+  // fils verticaux sol -> avion
+  L.push(new deck.LineLayer({ id: "aplombs", data: states, getSourcePosition: (s) => [s.lon, s.lat, 0], getTargetPosition: (s) => [s.lon, s.lat, Z(s.alt)],
+    getColor: (s) => [...COL[s.f.sens], 150], getWidth: 1, widthUnits: "pixels" }));
+  // avions 3D
+  for (const sens of ["ARR", "DEP"]) {
+    L.push(new deck.ScenegraphLayer({
+      id: "avions-" + sens, data: states.filter((s) => s.f.sens === sens), scenegraph: DATA.models[sens], pickable: true,
+      getPosition: (s) => [s.lon, s.lat, Z(s.alt) + 6], getOrientation: (s) => [-s.pitch, 90 - s.hdg, s.bank],
+      sizeScale: 1, sizeMinPixels: 1.5 * S.size, sizeMaxPixels: 3.5 * S.size, _lighting: "pbr",
+      getScale: (s) => (s.f.id === S.sel ? [1.35, 1.35, 1.35] : [1, 1, 1]), updateTriggers: { getScale: S.sel },
+    }));
+  }
+  // étiquettes
+  if (S.labels) L.push(new deck.TextLayer({ id: "etiquettes", data: states, getPosition: (s) => [s.lon, s.lat, Z(s.alt)],
+    getText: (s) => `${s.f.vol} · ${s.f.type}\n${fmtFt(s.alt)} ft · ${Math.round(s.gs)} kt`, getSize: 12, lineHeight: 1.2,
+    getColor: [20, 33, 61, 255], background: true, getBackgroundColor: (s) => s.f.id === S.sel ? [227, 240, 247, 240] : [255, 255, 255, 225],
+    getBorderColor: (s) => [...COL[s.f.sens], 255], getBorderWidth: 1.5, backgroundPadding: [5, 3], getPixelOffset: [0, -40],
+    characterSet: CHARS, fontFamily: FONT, fontWeight: 600, updateTriggers: { getBackgroundColor: S.sel } }));
+  return L;
+}
+
+// ------------------------------------------------------------------ interface
+const $ = (id) => document.getElementById(id);
+const pad = (n) => String(Math.floor(n)).padStart(2, "0");
+const hms = (s) => { s = ((Math.floor(s) % 86400) + 86400) % 86400; return `${pad(s / 3600)}:${pad((s % 3600) / 60)}:${pad(s % 60)}`; };
+function notice(txt, ms) { const n = $("notice"); n.textContent = txt; n.style.display = "block"; clearTimeout(notice.t); notice.t = setTimeout(() => (n.style.display = "none"), ms || 3000); }
+function setT(t) { S.T = Math.max(0, Math.min(86399, t)); }
+function logoHtml(f, cls) {
+  const src = DATA.logos[f.cie];
+  return src ? `<img class="${cls || ""}" src="${src}" alt="${f.cie}">` : `<span class="logo-fallback">${f.iata}</span>`;
+}
+
+// frise : avions simultanés + mouvements
+(function drawSpark() {
+  const svg = $("spark"), W = 1440, H = 34, c = DATA.conc, mx = Math.max(...c, 1);
+  let d = `M0 ${H}`;
+  for (let m = 0; m < 1440; m++) d += ` L${m} ${H - 4 - (c[m] / mx) * (H - 10)}`;
+  d += ` L1440 ${H} Z`;
+  let ticks = "";
+  for (const e of DATA.ticks) ticks += `<line x1="${e.t / 60}" x2="${e.t / 60}" y1="${H - 4}" y2="${H}" stroke="${e.s === "ARR" ? "#0B6E99" : "#E07A00"}" stroke-width="2"/>`;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = `<path d="${d}" fill="rgba(92,122,153,.28)" stroke="#5C7A99" stroke-width="1"/>${ticks}<line id="cur" x1="0" x2="0" y1="0" y2="${H}" stroke="#C0392B" stroke-width="3"/>`;
+  svg.addEventListener("click", (ev) => { const r = svg.getBoundingClientRect(); setT(((ev.clientX - r.left) / r.width) * 86400); });
+})();
+
+$("play").onclick = () => { S.playing = !S.playing; $("play").textContent = S.playing ? "⏸ Pause" : "▶ Lecture"; };
+$("speed").onchange = (e) => (S.speed = +e.target.value);
+document.querySelectorAll("[data-step]").forEach((b) => (b.onclick = () => setT(S.T + +b.dataset.step)));
+$("slider").oninput = (e) => setT(+e.target.value);
+$("next").onclick = () => {
+  const later = FLIGHTS.map((f) => f.t0).filter((t) => t > S.T + 1).sort((a, b) => a - b);
+  setT((later.length ? later[0] : Math.min(...FLIGHTS.map((f) => f.t0))) + 15);
+};
+$("peak").onclick = () => setT(DATA.peak_s);
+$("mode").onchange = (e) => (S.mode = e.target.value);
+$("walls").onchange = (e) => (S.walls = e.target.checked);
+$("labels").onchange = (e) => (S.labels = e.target.checked);
+$("bg").onchange = (e) => (S.bg = e.target.checked);
+$("ex").oninput = (e) => { S.ex = +e.target.value; $("ex-v").textContent = S.ex; clearTimeout(buildDyn.t); buildDyn.t = setTimeout(buildDyn, 120); };
+$("size").oninput = (e) => (S.size = +e.target.value);
+$("opts-toggle").onclick = () => $("opts").classList.toggle("open");
+document.querySelectorAll("#basemaps button").forEach((b) => (b.onclick = () => {
+  document.querySelectorAll("#basemaps button").forEach((x) => x.classList.toggle("on", x === b));
+  S.style = b.dataset.style; styleOk = false; map.setStyle(STYLES[S.style]);
+}));
+$("v-all").onclick = () => { S.follow = false; map.flyTo({ ...VIEWS.all, duration: 1600 }); };
+$("v-apt").onclick = () => { S.follow = false; map.flyTo({ ...VIEWS.apt, duration: 1800 }); };
+$("v-top").onclick = () => { S.follow = false; map.flyTo({ ...VIEWS.top, duration: 1400 }); };
+map.on("dragstart", () => { if (S.follow) { S.follow = false; renderDetail(); } });
+
+function select(id, follow) { S.sel = id; S.follow = !!follow && !!id; renderDetail(); lastList = ""; }
+function renderDetail() {
+  const box = $("detail"), f = S.sel && BYID[S.sel];
+  if (!f) { box.style.display = "none"; return; }
+  box.style.display = "block";
+  box.innerHTML = `<div class="hd">${logoHtml(f)}<div><b>${f.vol}</b> · ${f.cie}<br><span style="color:var(--muted)">${f.type_nom}</span></div></div>
+    <dl><dt>${f.sens === "ARR" ? "Provenance" : "Destination"}</dt><dd>${f.ville}</dd><dt>Immatriculation</dt><dd>${f.immat}</dd>
+    <dt>${f.sens === "ARR" ? "Atterrissage" : "Décollage"}</dt><dd>${hms(f.ev)}</dd><dt>Dans la zone</dt><dd>${hms(f.t0).slice(0, 5)} → ${hms(f.t1).slice(0, 5)}</dd>
+    <dt>Altitude</dt><dd id="d-alt">—</dd><dt>Vitesse sol</dt><dd id="d-gs">—</dd><dt>Phase</dt><dd id="d-ph">—</dd></dl>
+    <div class="acts"><button id="d-follow" class="${S.follow ? "on" : ""}">${S.follow ? "Suivi actif" : "Suivre"}</button><button id="d-close">Fermer</button></div>`;
+  $("d-follow").onclick = () => { S.follow = !S.follow; renderDetail(); };
+  $("d-close").onclick = () => select(null);
+}
+
+let lastList = "", lastUi = 0;
+function updateUi(states, now) {
+  $("clock").textContent = hms(S.T);
+  if (document.activeElement !== $("slider")) $("slider").value = Math.floor(S.T);
+  $("cur").setAttribute("x1", S.T / 60); $("cur").setAttribute("x2", S.T / 60);
+  if (now - lastUi < 200) return;
+  lastUi = now;
+  $("k-in").textContent = states.length; $("n-in").textContent = `(${states.length})`;
+  let mv = 0; while (mv < EVENTS.length && EVENTS[mv] <= S.T) mv++;
+  $("k-mv").textContent = mv;
+  const nx = EVENTS.find((e) => e > S.T);
+  $("k-next").textContent = nx === undefined ? "—" : `${Math.floor((nx - S.T) / 60)} min ${pad((nx - S.T) % 60)} s`;
+  const key = states.map((s) => s.f.id).join("|") + S.sel;
+  const sorted = states.slice().sort((a, b) => a.f.t0 - b.f.t0);
+  if (key !== lastList) {
+    lastList = key;
+    $("cards").innerHTML = sorted.length ? sorted.map((s) => `<div class="card ${s.f.sens} ${s.f.id === S.sel ? "sel" : ""}" data-id="${s.f.id}">
+        ${logoHtml(s.f)}<span class="v">${s.f.vol} <span style="font-weight:400;color:var(--muted)">${s.f.type}</span></span><span class="n" id="n-${s.f.id}"></span>
+        <span class="r">${s.f.sens === "ARR" ? "de" : "vers"} ${s.f.ville}</span><span class="n r" id="p-${s.f.id}"></span></div>`).join("")
+      : `<div class="empty">Aucun avion dans la zone à cette heure.<br>Essayez « Prochain avion ».</div>`;
+    document.querySelectorAll(".card").forEach((c) => (c.onclick = () => select(c.dataset.id === S.sel ? null : c.dataset.id, true)));
+  }
+  for (const s of sorted) {
+    const a = $("n-" + s.f.id), p = $("p-" + s.f.id);
+    if (a) a.textContent = `${fmtFt(s.alt)} ft`;
+    if (p) p.textContent = `${Math.round(s.gs)} kt`;
+  }
+  const sel = states.find((s) => s.f.id === S.sel);
+  if ($("d-alt")) {
+    $("d-alt").textContent = sel ? `${fmtFt(sel.alt)} ft (${Math.round((sel.alt * FT) / 10) * 10} m)` : "hors zone";
+    $("d-gs").textContent = sel ? `${Math.round(sel.gs)} kt (${Math.round(sel.gs * 1.852)} km/h)` : "—";
+    $("d-ph").textContent = sel ? sel.phase : "—";
+  }
+}
+
+// ------------------------------------------------------------------ boucle d'animation
+let last = performance.now();
+let FRAMES = 0;
+function frame(now) {
+  FRAMES++;
+  const dt = Math.min(0.25, (now - last) / 1000); last = now;
+  if (S.playing) { S.T += dt * S.speed; if (S.T >= 86399) { S.T = 86399; S.playing = false; $("play").textContent = "▶ Lecture"; } }
+  const states = [];
+  for (const f of FLIGHTS) { const s = stateAt(f, S.T); if (s) states.push(s); }
+  overlay.setProps({ layers: layers(states) });
+  if (S.follow && S.sel) { const s = states.find((x) => x.f.id === S.sel); if (s) map.jumpTo({ center: [s.lon, s.lat] }); }
+  updateUi(states, now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.__airtrack = { S, FLIGHTS, stateAt, map, overlay, frames: () => FRAMES };   // accès pour les tests
+</script>
+</body>
+</html>
