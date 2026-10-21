@@ -6,7 +6,7 @@ Une journée type de trafic aérien à Paris-Beauvais (LFOB), piste 12 : carte 3
 
 ---
 
-## Mettre l'application en ligne (sans ligne de commande)
+## Mettre l'application en ligne 
 
 Comptez une quinzaine de minutes. Il faut deux comptes gratuits : **GitHub** (pour héberger les fichiers) et **Streamlit Community Cloud** (pour faire tourner l'application).
 
